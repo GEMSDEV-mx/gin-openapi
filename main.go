@@ -2,19 +2,19 @@ package openapi
 
 import (
 	"net/http"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
 )
 
-// OpenAPI defines the OpenAPI schema
-// This is a minimal example; expand as needed.
+// OpenAPI defines the OpenAPI schema.
 type OpenAPI struct {
 	Openapi string                 `json:"openapi"`
 	Info    map[string]string      `json:"info"`
 	Paths   map[string]interface{} `json:"paths"`
 }
 
-// GenerateOpenAPISpec generates a basic OpenAPI spec
+// Route represents an API route for OpenAPI documentation.
 type Route struct {
 	Method   string
 	Path     string
@@ -25,6 +25,7 @@ type Route struct {
 	Response interface{}   // Response schema
 }
 
+// ParamSchema represents a query or path parameter in OpenAPI.
 type ParamSchema struct {
 	Name        string
 	Description string
@@ -32,7 +33,7 @@ type ParamSchema struct {
 	Type        string
 }
 
-
+// GenerateOpenAPISpec generates the OpenAPI documentation.
 func GenerateOpenAPISpec(routes []Route) OpenAPI {
 	spec := OpenAPI{
 		Openapi: "3.0.0",
@@ -48,6 +49,9 @@ func GenerateOpenAPISpec(routes []Route) OpenAPI {
 			spec.Paths[route.Path] = make(map[string]interface{})
 		}
 
+		// Ensure array responses are correctly wrapped
+		responseSchema := processResponseSchema(route.Response)
+
 		operation := map[string]interface{}{
 			"summary": route.Summary,
 			"responses": map[string]interface{}{
@@ -55,7 +59,7 @@ func GenerateOpenAPISpec(routes []Route) OpenAPI {
 					"description": "Success",
 					"content": map[string]interface{}{
 						"application/json": map[string]interface{}{
-							"schema": route.Response,
+							"schema": responseSchema,
 						},
 					},
 				},
@@ -110,8 +114,26 @@ func GenerateOpenAPISpec(routes []Route) OpenAPI {
 	return spec
 }
 
+// processResponseSchema ensures arrays are correctly wrapped in OpenAPI.
+func processResponseSchema(response interface{}) interface{} {
+	if response == nil {
+		return nil
+	}
 
-// ServeOpenAPIDocs serves the OpenAPI JSON
+	// Detect if response is a slice (array)
+	responseType := reflect.TypeOf(response)
+	if responseType.Kind() == reflect.Slice {
+		return map[string]interface{}{
+			"type":  "array",
+			"items": response,
+		}
+	}
+
+	// Return as-is for single objects
+	return response
+}
+
+// ServeOpenAPIDocs serves the OpenAPI JSON.
 type OpenAPIServer struct {
 	Routes []Route
 }
@@ -141,4 +163,3 @@ func (o *OpenAPIServer) AddRoute(method, path, summary string, body interface{},
 		Response: response,
 	})
 }
-
