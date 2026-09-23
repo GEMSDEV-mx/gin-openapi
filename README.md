@@ -24,28 +24,31 @@ go get github.com/GEMSDEV-mx/gin-openapi
 package main
 
 import (
-	"log"
+	"context"
+	"encoding/json"
 
+	"github.com/aws/aws-lambda-go/events"
 	server "github.com/GEMSDEV-mx/gin-multi-server"
 	openapi "github.com/GEMSDEV-mx/gin-openapi"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	_ = godotenv.Load()
-
 	s := server.NewServer()
 	apiDocs := openapi.NewOpenAPIServer()
 
 	// Define API handlers
 	s.MountEndpoint("POST", "/api/resource", CreateResourceHandler)
-	apiDocs.AddRoute("POST", "/api/resource", "Creates a new resource", ResourceRequest{}, ResourceResponse{})
+	apiDocs.AddRoute("POST", "/api/resource", "Creates a new resource", ResourceRequest{}, nil, nil, ResourceResponse{})
 
 	s.MountEndpoint("GET", "/api/resource", GetResourceHandler)
-	apiDocs.AddRoute("GET", "/api/resource", "Retrieves a resource", nil, ResourceResponse{})
+	apiDocs.AddRoute("GET", "/api/resource", "Retrieves a resource", nil, nil, nil, ResourceResponse{})
 
 	// Serve OpenAPI spec
-	s.MountEndpoint("GET", "/openapi.json", apiDocs.ServeOpenAPIHandler)
+	s.MountEndpoint(server.GET, "/openapi.json", func(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
+		spec := openapi.GenerateOpenAPISpec(apiDocs.Routes)
+		body, err := json.Marshal(spec)
+		return events.APIGatewayProxyResponse{StatusCode: 200, Body: string(body)}, err
+	})
 
 	s.Serve("8080")
 }
@@ -68,12 +71,12 @@ func main() {
 	r.POST("/api/resource", func(c *gin.Context) {
 		// Handle request
 	})
-	apiDocs.AddRoute("POST", "/api/resource", "Creates a new resource", ResourceRequest{}, ResourceResponse{})
+	apiDocs.AddRoute("POST", "/api/resource", "Creates a new resource", ResourceRequest{}, nil, nil, ResourceResponse{})
 
 	r.GET("/api/resource", func(c *gin.Context) {
 		// Handle request
 	})
-	apiDocs.AddRoute("GET", "/api/resource", "Retrieves a resource", nil, ResourceResponse{})
+	apiDocs.AddRoute("GET", "/api/resource", "Retrieves a resource", nil, nil, nil, ResourceResponse{})
 
 	// Serve OpenAPI JSON
 	r.GET("/openapi.json", apiDocs.ServeOpenAPI)
@@ -95,7 +98,7 @@ When requesting `GET /openapi.json`, you'll receive:
   },
   "paths": {
     "/api/resource": {
-      "POST": {
+      "post": {
         "summary": "Creates a new resource",
         "requestBody": {
           "content": {
